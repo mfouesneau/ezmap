@@ -25,9 +25,9 @@ progressbar during the computations.
 Note: lambda functions are cast to __PicklableLambda__
 
 Example:
+
     >>> def fn(a, b, *args, **kwargs):
            return a, b, args, kwargs
-
     >>> print map(partial(fn, a=1, c=2, b=2, allkeywords=True), (3, 4, 5), ncpu=-1)
     [(1, 2, (3,), {'c': 2}), (1, 2, (4,), {'c': 2}), (1, 2, (5,), {'c': 2})]
 
@@ -49,9 +49,9 @@ see: `allkeywords`
 Note: lambda functions are cast to __PicklableLambda__
 
 Example:
+
     >>> def fn(a, b, *args, **kwargs):
            return a, b, args, kwargs
-
     >>> print partial(fn, 2, c=2)(3, 4, 5, 6, 7)
     # TypeError: __call__() takes exactly 2 arguments (6 given)
     >>> print partial(fn, 2, c=2)(3)
@@ -65,9 +65,9 @@ Decorator that allows any argument to be set as a keyword. Especially useful
 for partial function definitions
 
 Example:
+
     >>> def fn(a, b, *args, **kwargs):
            return a, b, args, kwargs
-
     >>> print partial(_allkeywords(fn), a=1, c=2, b=2)(3, 4, 5, 6, 7)
     # normally: TypeError but works now
 
@@ -87,7 +87,7 @@ Notes:
 to PicklableLambda.
 
 Example:
+
         >>> f = lambda *args, **kwargs: (args, kwargs)
         >>> map(PicklableLambda(f), (10, 11), ncpu=-1)
         [((10,), {}), ((11,), {})]
-
