@@ -94,12 +94,14 @@ Example:
 
 **Pool**
 
-Overloaded built-in class to make a context manager A process pool object which controls a pool of worker processes to which jobs can be submitted. It supports asynchronous results with timeouts and callbacks and has a parallel map implementation.
+Overloaded built-in class to make a context manager.
+
+A process pool object which controls a pool of worker processes to which jobs can be submitted. It supports asynchronous results with timeouts and callbacks and has a parallel map implementation.
 
 ```python
 Example
 >>> with Pool(10) as p:
-	p.map(func, seq)
+        p.map(func, seq)
 ```
 
 **async**
