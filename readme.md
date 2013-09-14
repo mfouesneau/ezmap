@@ -68,7 +68,7 @@ Example:
 ```python
 >>> def fn(a, b, *args, **kwargs):
 	return a, b, args, kwargs
->>> print partial(_allkeywords(fn), a=1, c=2, b=2)(3, 4, 5, 6, 7)
+>>> print partial(allkeywords(fn), a=1, c=2, b=2)(3, 4, 5, 6, 7)
 # normally: TypeError but works now
 ```
 
