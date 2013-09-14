@@ -20,11 +20,12 @@ Note: lambda functions are cast to __PicklableLambda__
 
 Example:
 
+```python
     >>> def fn(a, b, *args, **kwargs):
            return a, b, args, kwargs
     >>> print map(partial(fn, a=1, c=2, b=2, allkeywords=True), (3, 4, 5), ncpu=-1)
     [(1, 2, (3,), {'c': 2}), (1, 2, (4,), {'c': 2}), (1, 2, (5,), {'c': 2})]
-
+```
 
 
 **map_async**
@@ -40,6 +41,7 @@ Note: lambda functions are cast to __PicklableLambda__
 
 Example:
 
+```python
     >>> def fn(a, b, *args, **kwargs):
            return a, b, args, kwargs
     >>> print partial(fn, 2, c=2)(3, 4, 5, 6, 7)
@@ -48,6 +50,7 @@ Example:
     (3, 2, (), {'c': 2})
     >>> print partial(fn, a=1, c=2, b=2, allkeywords=True)(3, 4, 5, 6, 7)
     >>> print partial(fun, a=1, b=2)(3, 4, 5, 6, 7, c=3)
+```
 
 
 **allkeywords**
@@ -55,10 +58,12 @@ Decorator that allows any argument to be set as a keyword. Especially useful for
 
 Example:
 
+```python
     >>> def fn(a, b, *args, **kwargs):
            return a, b, args, kwargs
     >>> print partial(_allkeywords(fn), a=1, c=2, b=2)(3, 4, 5, 6, 7)
     # normally: TypeError but works now
+```
 
 
 
@@ -73,37 +78,45 @@ to PicklableLambda.
 
 Example:
 
+```python
         >>> f = lambda *args, **kwargs: (args, kwargs)
         >>> map(PicklableLambda(f), (10, 11), ncpu=-1)
         [((10,), {}), ((11,), {})]
+```
 
 **Pool**
 Overloaded built-in class to make a context manager A process pool object which controls a pool of worker processes to which jobs can be submitted. It supports asynchronous results with timeouts and callbacks and has a parallel map implementation.
 
+```python
 Example
 	>>> with Pool(10) as p:
 	        p.map(func, seq)
+```
 
 **async**
 decorator function which makes the decorated function run in a separate Process (asynchronously).
 
 Example:
 
+```python
     >>> @async
         def task1():
             do_something
 
     >>> t1 = task1()
     >>> t1.join()
+```
 
 **async_with_pool**
 decorator similar to async, which includes using a pool to manage multiple tasks.
 
 Example:
 
+```python
     >>> @async_with_pool(Pool(3))
         def task1():
             do_something
 
     >>> t1 = task1()
     >>> t1.join()
+```
