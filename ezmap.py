@@ -15,13 +15,13 @@ Example:
 import multiprocessing as _mp
 import functools as _fntools
 import inspect as _inspect
-import time
-from progressbar import PBar
+import time as _time
+from progressbar import PBar as _PBar
 from multiprocessing.pool import Pool as _Pool
+from inspect import getmodule as _getmodule
 
 
-__all__ = ['map', 'map_async', 'Partial', 'allkeywords',
-           'PicklableLambda', 'async', 'async_with_pool']
+__all__ = ['map', 'map_async', 'Partial', 'allkeywords', 'PicklableLambda', 'async']
 
 #keep the built-in function
 _map = map
@@ -77,7 +77,7 @@ def map(func, iterable, chunksize=None, ncpu=0, limit=True, progress=False):
                 txt = progress
             else:
                 txt = func.__name__
-            with PBar(n, txt=txt) as pb:
+            with _PBar(n, txt=txt) as pb:
                 for e, k in enumerate(iterable):
                     r.append(func(k))
                     pb.update(e)
@@ -101,7 +101,7 @@ def map(func, iterable, chunksize=None, ncpu=0, limit=True, progress=False):
         else:
             txt = func.__name__
 
-        with PBar(ntasks, txt=txt) as pb:
+        with _PBar(ntasks, txt=txt) as pb:
             # get the pool working asynchronously
             if islambda(func):
                 amap = p.map_async(PicklableLambda(func), iterable, chunksize)
@@ -109,7 +109,7 @@ def map(func, iterable, chunksize=None, ncpu=0, limit=True, progress=False):
                 amap = p.map_async(func, iterable, chunksize)
             left = 1
             while left > 0:
-                time.sleep(0.1)
+                _time.sleep(0.1)
                 left = amap._number_left
                 pb.update(ntasks - left)
         return amap.get()
@@ -117,7 +117,7 @@ def map(func, iterable, chunksize=None, ncpu=0, limit=True, progress=False):
         return map_async(func, iterable, chunksize, ncpu=ncpu, limit=limit).get()
 
 
-def map_async(func, iterable, chunksize=None, callback=None, ncpu=0, limit=True):
+def map_async(func, iterable, chunksize=None, callback=None, ncpu=0, limit=True, **kwargs):
     """
     Asynchronous equivalent of `map()` builtin
     A variant of the map() method which returns a result object.
@@ -208,13 +208,12 @@ class Partial(object):
     Example:
     >>> def fn(a, b, *args, **kwargs):
            return a, b, args, kwargs
-
-    >>> print partial(fn, 2, c=2)(3, 4, 5, 6, 7)
-    # TypeError: __call__() takes exactly 2 arguments (6 given)
-    >>> print partial(fn, 2, c=2)(3)
-    (3, 2, (), {'c': 2})
-    >>> print partial(fn, a=1, c=2, b=2, allkeywords=True)(3, 4, 5, 6, 7)
-    >>> print partial(fun, a=1, b=2)(3, 4, 5, 6, 7, c=3)
+        print Partial(fn, 2, c=2)(3, 4, 5, 6, 7)
+        # TypeError: __call__() takes exactly 2 arguments (6 given)
+        print Partial(fn, 2, c=2)(3)
+        # (3, 2, (), {'c': 2})
+        print Partial(fn, a=1, c=2, b=2, allkeywords=True)(3, 4, 5, 6, 7)
+        print Partial(fun, a=1, b=2)(3, 4, 5, 6, 7, c=3)
     """
     def __init__(self, func, *args, **kwargs):
 
@@ -247,9 +246,8 @@ def allkeywords(f):
     Example:
     >>> def fn(a, b, *args, **kwargs):
            return a, b, args, kwargs
-
-    >>> print partial(_allkeywords(fn), a=1, c=2, b=2)(3, 4, 5, 6, 7)
-    # normally: TypeError but works now
+        print partial(allkeywords(fn), a=1, c=2, b=2)(3, 4, 5, 6, 7)
+        # normally: TypeError but works now
     """
     @_fntools.wraps(f)
     def wrapper(*a, **k):
@@ -303,9 +301,29 @@ class PicklableLambda(object):
 
 
 def async(func):
-    """
+    '''
     decorator function which makes the decorated function run in a separate
     Process (asynchronously).  Returns the created Process object.
+
+    Making async tasks in python is easy. However making async tasks returning
+    values is a pain in the neck due to limitations in Python's pickling
+    machinery. The trick is to wraps a top-level function around an asynchronous
+    dispatcher.
+
+    when the decorated function is called, a task is submitted to a
+    process pool, and a future object is returned, providing access to an
+    eventual return value.
+
+    The future object has a blocking get() method to access the task
+    result: it will return immediately if the job is already done, or block
+    until it completes.
+
+    This decorator won't work on methods, due to limitations in Python's
+    pickling machinery (in principle methods could be made pickleable, but
+    good luck on that).
+
+    You can also use a common pool to handle multiple async tasks. However,
+    keep in mind that the pool must be generated in the main level
 
     Example:
 
@@ -314,53 +332,32 @@ def async(func):
             do_something
 
     >>> t1 = task1()
-    >>> t1.join()
-    """
+    >>> t1.get()
+
+    >>> async.pool = Pool(4)
+    >>> t1 = task1()
+    >>> t1.get()
+    '''
+
+    # Keeps the original function visible from the module global namespace,
+    # under a name consistent to its __name__ attribute. This is necessary for
+    # the multiprocessing pickling machinery to work properly.
+    module = _getmodule(func)
+    func.__name__ += '_original'
+    setattr(module, func.__name__, func)
+
     if islambda(func):
         _func = PicklableLambda(func)
     else:
         _func = func
 
-    @_fntools.wraps(_func)
-    def async_func(*args, **kwargs):
-        func_hl = _mp.Process(target=_func, args=args, kwargs=kwargs)
-        func_hl.start()
-        return func_hl
-
-    return async_func
-
-
-def async_with_pool(pool):
-    """
-    decorator function which makes the decorated function run in a separate
-    Process (asynchronously).  Returns the created Process object.
-
-    Example:
-
-    >>> @async_with_pool(Pool(3))
-        def task1():
-            do_something
-
-    >>> t1 = task1()
-    >>> t1.join()
-    """
-    if not hasattr(pool, 'Process'):
-        raise AttributeError('pool object is expected to have a Process attribute')
-
-    def deco(func):
-        if islambda(func):
-            _func = PicklableLambda(func)
+    def send(*args, **opts):
+        if hasattr(async, 'pool'):
+            return async.pool.apply_async(_func, args, opts)
         else:
-            _func = func
+            return Pool(1).apply_async(_func, args, opts)
 
-        @_fntools.wraps(_func)
-        def async_func(*args, **kwargs):
-            func_hl = pool.Process(target=_func, args=args, kwargs=kwargs)
-            func_hl.start()
-            return func_hl
-
-        return async_func
-    return deco
+    return send
 
 
 class Pool(_Pool):
@@ -400,22 +397,48 @@ class Pool(_Pool):
             could be obtained when requesting more cpus than available
         """
         _n = _mp.cpu_count()
-        if (ncpu <= 0):
-            # use all available cpus
-            _Pool.__init__(self, processes=_n, initializer=initializer,
-                           initargs=initargs,
-                           maxtasksperchild=maxtasksperchild)
+        if (ncpu <= 0):   # use all available cpus
+            self._n = _n
         elif (ncpu > _n) & (limit is True):
-            _Pool.__init__(self, processes=_n, initializer=initializer,
-                           initargs=initargs,
-                           maxtasksperchild=maxtasksperchild)
+            self._n = _n
         else:
-            _Pool.__init__(self, processes=ncpu, initializer=initializer,
-                           initargs=initargs,
-                           maxtasksperchild=maxtasksperchild)
+            self._n = ncpu
+        _Pool.__init__(self, processes=self._n, initializer=initializer,
+                       initargs=initargs, maxtasksperchild=maxtasksperchild)
 
     def __enter__(self):
         return self
 
     def __exit__(self, type, value, traceback):
         pass
+
+    def __repr__(self):
+        return 'Pool (ncpu={})\n{}'.format( self._n, _Pool.__repr__(self) )
+
+
+
+if __name__ == '__main__':
+    @async
+    def printsum(uid, values):
+        summed = 0
+        for value in values:
+            #_time.sleep(0.1)
+            summed += value
+
+        print("Worker %i: sum value is %i" % (uid, summed))
+
+        return (uid, summed)
+
+    from random import sample
+    pool = Pool(1)
+
+    async.pool = pool
+
+    p = range(0, 1000)
+    results = []
+    for i in range(4):
+        result = printsum(i, sample(p, 100))
+        results.append(result)
+
+    for result in results:
+        print("Worker %i: sum value is %i" % result.get())
