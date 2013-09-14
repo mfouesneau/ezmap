@@ -103,29 +103,29 @@ Example
 ```
 
 **async**
-decorator function which makes the decorated function run in a separate
-Process (asynchronously).  Returns the created Process object.
 
-Making async tasks in python is easy. However making async tasks returning
-values is a pain in the neck due to limitations in Python's pickling
-machinery. The trick is to wraps a top-level function around an asynchronous
-dispatcher.
+Decorator function which makes the decorated function run in a separate Process (asynchronously).  Returns the created Process object.
 
-when the decorated function is called, a task is submitted to a
-process pool, and a future object is returned, providing access to an
-eventual return value.
+Making async tasks in python is easy. However making async tasks returning values is a pain in the neck due to limitations in Python's pickling machinery. The trick is to wraps a top-level function around an asynchronous dispatcher.
 
-The future object has a blocking get() method to access the task
-result: it will return immediately if the job is already done, or block
-until it completes.
+when the decorated function is called, a task is submitted to a process pool, and a future object is returned, providing access to an eventual return value.
 
-This decorator won't work on methods, due to limitations in Python's
-pickling machinery (in principle methods could be made pickleable, but
-good luck on that).
+The future object has a blocking get() method to access the task result: it will return immediately if the job is already done, or block until it completes.
 
-You can also use a common pool to handle multiple async tasks. However,
-keep in mind that the pool must be generated in the main level.
+This decorator won't work on methods, due to limitations in Python's pickling machinery (in principle methods could be made pickleable, but good luck on that).
 
+You can also use a common pool to handle multiple async tasks. However, keep in mind that the pool must be generated in the main level.  
+
+Example:
+
+```python
+>>> @async_with_pool(Pool(3))
+def task1():
+	do_something
+
+>>> t1 = task1()
+>>> t1.join()
+```
 Example:
 
 ```python
