@@ -119,16 +119,6 @@ You can also use a common pool to handle multiple async tasks. However, keep in 
 Example:
 
 ```python
->>> @async_with_pool(Pool(3))
-def task1():
-	do_something
-
->>> t1 = task1()
->>> t1.join()
-```
-Example:
-
-```python
 
 >>> @async
     def printsum(uid, values):
