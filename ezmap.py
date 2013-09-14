@@ -1,7 +1,8 @@
 """
 This package is meant to mimic a regular map call with different parallel
 processing handling: built-in map, multiprocessing with given number of cpus,
-etc. It also provides the multiprocessing.map_async with a similar calling sequence.
+etc. It also provides the multiprocessing.map_async with a similar calling
+sequence.
 
 Example:
 
@@ -16,10 +17,11 @@ import functools as _fntools
 import inspect as _inspect
 import time
 from progressbar import PBar
-#import re as _re
+from multiprocessing.pool import Pool as _Pool
 
 
-__all__ = ['map', 'map_async', 'Partial', 'allkeywords', 'PicklableLambda']
+__all__ = ['map', 'map_async', 'Partial', 'allkeywords',
+           'PicklableLambda', 'async', 'async_with_pool']
 
 #keep the built-in function
 _map = map
@@ -252,7 +254,6 @@ def allkeywords(f):
     @_fntools.wraps(f)
     def wrapper(*a, **k):
         a = list(a)
-        #for idx, arg in enumerate(f.func_code.co_varnames[:f.func_code.co_argcount], - ismethod(f)):
         for idx, arg in enumerate(_inspect.getargspec(f).args, -_inspect.ismethod(f)):  # or [0] in 2.5
             if arg in k:
                 if idx < len(a):
@@ -292,18 +293,129 @@ class PicklableLambda(object):
             raise TypeError('Object not a lambda function')
         self.func_code = _inspect.getsource(func)
         self.__name__ = self.func_code.split('=')[0].strip()
-        #self.depends = {}
-        #globs = func.func_globals
-        #for k, ck in globs.iteritems():
-        #    if (k in self.func_code) & (_re.search('%s\(.*\)' % k, self.func_code) is not None):
-        #        if islambda(ck):
-        #            self.depends[k] = PicklableLambda(ck)
-        #        elif callable(ck):
-        #            self.depends[k] = globs[k]
 
-    def  __repr__(self):
+    def __repr__(self):
         return self.func_code + object.__repr__(self)
 
     def __call__(self, *args, **kwargs):
-        func = eval(self.func_code.split('=')[1])  # , self.depends)
+        func = eval(self.func_code.split('=')[1])
         return func(*args, **kwargs)
+
+
+def async(func):
+    """
+    decorator function which makes the decorated function run in a separate
+    Process (asynchronously).  Returns the created Process object.
+
+    Example:
+
+    >>> @async
+        def task1():
+            do_something
+
+    >>> t1 = task1()
+    >>> t1.join()
+    """
+    if islambda(func):
+        _func = PicklableLambda(func)
+    else:
+        _func = func
+
+    @_fntools.wraps(_func)
+    def async_func(*args, **kwargs):
+        func_hl = _mp.Process(target=_func, args=args, kwargs=kwargs)
+        func_hl.start()
+        return func_hl
+
+    return async_func
+
+
+def async_with_pool(pool):
+    """
+    decorator function which makes the decorated function run in a separate
+    Process (asynchronously).  Returns the created Process object.
+
+    Example:
+
+    >>> @async_with_pool(Pool(3))
+        def task1():
+            do_something
+
+    >>> t1 = task1()
+    >>> t1.join()
+    """
+    if not hasattr(pool, 'Process'):
+        raise AttributeError('pool object is expected to have a Process attribute')
+
+    def deco(func):
+        if islambda(func):
+            _func = PicklableLambda(func)
+        else:
+            _func = func
+
+        @_fntools.wraps(_func)
+        def async_func(*args, **kwargs):
+            func_hl = pool.Process(target=_func, args=args, kwargs=kwargs)
+            func_hl.start()
+            return func_hl
+
+        return async_func
+    return deco
+
+
+class Pool(_Pool):
+    """ Overloadind the built-in class to make a context manager
+    A process pool object which controls a pool of worker processes to
+    which jobs can be submitted. It supports asynchronous results with
+    timeouts and callbacks and has a parallel map implementation.
+    """
+    def __init__(self, ncpu, initializer=None, initargs=(),
+                 maxtasksperchild=None, limit=True):
+        """
+        INPUTS
+        ------
+        ncpu: int (default 0, i.e, built-in map behavior)
+            number of cpu to use for the mapping.
+            0 is equivalent to calling the built-in map function
+            <0 is equivalent to requesting all cpus
+
+        initializer: callable
+            if set, each worker process will call initializer(*initargs) when
+            it starts.
+
+        initargs: tuple
+            arguments to use with the initializer
+
+        maxtasksperchild: int
+            number of tasks a worker process can complete before it will exit
+            and be replaced with a fresh worker process, to enable unused
+            resources to be freed. The default maxtasksperchild is None, which
+            means worker processes will live as long as the pool.
+
+        limit: bool (default True)
+            if ncpu is greater than the number of available cpus, setting this
+            keyword will limit the request to the maximum available
+
+            Note: sometimes the os load controller does awesome and some speed-up
+            could be obtained when requesting more cpus than available
+        """
+        _n = _mp.cpu_count()
+        if (ncpu <= 0):
+            # use all available cpus
+            _Pool.__init__(self, processes=_n, initializer=initializer,
+                           initargs=initargs,
+                           maxtasksperchild=maxtasksperchild)
+        elif (ncpu > _n) & (limit is True):
+            _Pool.__init__(self, processes=_n, initializer=initializer,
+                           initargs=initargs,
+                           maxtasksperchild=maxtasksperchild)
+        else:
+            _Pool.__init__(self, processes=ncpu, initializer=initializer,
+                           initargs=initargs,
+                           maxtasksperchild=maxtasksperchild)
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, type, value, traceback):
+        pass
