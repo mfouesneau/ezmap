@@ -16,7 +16,7 @@ import multiprocessing as _mp
 import functools as _fntools
 import inspect as _inspect
 import time as _time
-from progressbar import PBar as _PBar
+from .pbar import Pbar as _PBar
 from multiprocessing.pool import Pool as _Pool
 from inspect import getmodule as _getmodule
 
@@ -71,16 +71,13 @@ def map(func, iterable, chunksize=None, ncpu=0, limit=True, progress=False):
         if (not progress):
             return _map(func, iterable)
         else:
-            n = len(iterable)
             r = []
             if isinstance(progress, str):
                 txt = progress
             else:
                 txt = func.__name__
-            with _PBar(n, txt=txt) as pb:
-                for e, k in enumerate(iterable):
-                    r.append(func(k))
-                    pb.update(e)
+            for k in _PBar(desc=txt).iterover(iterable):
+                r.append(func(k))
             return r
     elif progress:
         _n = _mp.cpu_count()
@@ -101,7 +98,7 @@ def map(func, iterable, chunksize=None, ncpu=0, limit=True, progress=False):
         else:
             txt = func.__name__
 
-        with _PBar(ntasks, txt=txt) as pb:
+        with _PBar(ntasks, desc=txt) as pb:
             # get the pool working asynchronously
             if islambda(func):
                 amap = p.map_async(PicklableLambda(func), iterable, chunksize)
@@ -207,13 +204,13 @@ class Partial(object):
 
     Example:
     >>> def fn(a, b, *args, **kwargs):
-           return a, b, args, kwargs
-        print Partial(fn, 2, c=2)(3, 4, 5, 6, 7)
+        ... return a, b, args, kwargs
+    >>> print Partial(fn, 2, c=2)(3, 4, 5, 6, 7)
         # TypeError: __call__() takes exactly 2 arguments (6 given)
-        print Partial(fn, 2, c=2)(3)
+    >>> print Partial(fn, 2, c=2)(3)
         # (3, 2, (), {'c': 2})
-        print Partial(fn, a=1, c=2, b=2, allkeywords=True)(3, 4, 5, 6, 7)
-        print Partial(fun, a=1, b=2)(3, 4, 5, 6, 7, c=3)
+    >>> print Partial(fn, a=1, c=2, b=2, allkeywords=True)(3, 4, 5, 6, 7)
+    >>> print Partial(fun, a=1, b=2)(3, 4, 5, 6, 7, c=3)
     """
     def __init__(self, func, *args, **kwargs):
 
@@ -245,8 +242,8 @@ def allkeywords(f):
 
     Example:
     >>> def fn(a, b, *args, **kwargs):
-           return a, b, args, kwargs
-        print partial(allkeywords(fn), a=1, c=2, b=2)(3, 4, 5, 6, 7)
+        ... return a, b, args, kwargs
+    >>> print partial(allkeywords(fn), a=1, c=2, b=2)(3, 4, 5, 6, 7)
         # normally: TypeError but works now
     """
     @_fntools.wraps(f)
@@ -328,12 +325,10 @@ def async(func):
     Example:
 
     >>> @async
-        def task1():
-            do_something
-
+    ... def task1():
+        ... do_something
     >>> t1 = task1()
     >>> t1.get()
-
     >>> async.pool = Pool(4)
     >>> t1 = task1()
     >>> t1.get()
@@ -414,7 +409,6 @@ class Pool(_Pool):
 
     def __repr__(self):
         return 'Pool (ncpu={})\n{}'.format( self._n, _Pool.__repr__(self) )
-
 
 
 if __name__ == '__main__':
