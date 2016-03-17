@@ -5,9 +5,7 @@ I was always finding myself writing snippets around parallel mapping in python, 
 
 So that I wrote this package to make my life easier. Everything goes through the same command: `map`!
 
-Despite the `Pool` class from the multiprocessing package is quite nice, in this module, I implemented a `map` that remedies to its lack of progress indicator, based on Valentin Haenel's progress bar package (included).
-
-(progress-bar source: https://code.google.com/p/python-progressbar/)
+Despite the `Pool` class from the multiprocessing package is quite nice, in this module, I implemented a `map` that remedies to its lack of progress indicator.
 
 
 This package has been tested with both Python 2.7 and Python 3
