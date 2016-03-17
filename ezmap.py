@@ -16,15 +16,29 @@ import multiprocessing as _mp
 import functools as _fntools
 import inspect as _inspect
 import time as _time
-from .pbar import Pbar as _PBar
 from multiprocessing.pool import Pool as _Pool
 from inspect import getmodule as _getmodule
+import signal as _signal
+from multiprocessing import TimeoutError
+from .pbar import Pbar as _PBar
 
 
 __all__ = ['map', 'map_async', 'Partial', 'allkeywords', 'PicklableLambda', 'async']
 
+
 #keep the built-in function
 _map = map
+
+
+def _initializer_wrapper(actual_initializer, *rest):
+    """
+    We ignore SIGINT. It's up to our parent to kill us in the typical
+    condition of this arising from ``^C`` on a terminal. If someone is
+    manually killing us with that signal, well... nothing will happen.
+    """
+    _signal.signal(_signal.SIGINT, _signal.SIG_IGN)
+    if actual_initializer is not None:
+        actual_initializer(*rest)
 
 
 def map(func, iterable, chunksize=None, ncpu=0, limit=True, progress=False):
@@ -361,6 +375,8 @@ class Pool(_Pool):
     which jobs can be submitted. It supports asynchronous results with
     timeouts and callbacks and has a parallel map implementation.
     """
+    wait_timeout = 3600
+
     def __init__(self, ncpu, initializer=None, initargs=(),
                  maxtasksperchild=None, limit=True):
         """
@@ -398,8 +414,34 @@ class Pool(_Pool):
             self._n = _n
         else:
             self._n = ncpu
-        _Pool.__init__(self, processes=self._n, initializer=initializer,
+
+        new_initializer = Partial(_initializer_wrapper, initializer)
+        _Pool.__init__(self, processes=self._n, initializer=new_initializer,
                        initargs=initargs, maxtasksperchild=maxtasksperchild)
+
+    def map(self, func, iterable, chunksize=None):
+        """
+        Equivalent of ``map()`` built-in, without swallowing
+        ``KeyboardInterrupt``.
+        :param func:
+            The function to apply to the items.
+        :param iterable:
+            An iterable of items that will have `func` applied to them.
+        """
+        # The key magic is that we must call r.get() with a timeout, because
+        # a Condition.wait() without a timeout swallows KeyboardInterrupts.
+        r = self.map_async(func, iterable, chunksize)
+
+        while True:
+            try:
+                return r.get(self.wait_timeout)
+            except TimeoutError:
+                pass
+            except KeyboardInterrupt:
+                self.terminate()
+                self.join()
+                raise
+            # Other exceptions propagate up.
 
     def __enter__(self):
         return self
